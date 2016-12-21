@@ -10,7 +10,7 @@ import mysql.connector as conn
 from pandas import DataFrame
 
 
-cnx = conn.connect(host='221.151.62.212',user='smwjwas',password='qwer0802',database='smwj')
+cnx = conn.connect(**dbConfig.config)
 cursor = cnx.cursor()
 
 item = '^KQ11' # kosdaq

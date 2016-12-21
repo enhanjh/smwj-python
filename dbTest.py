@@ -31,7 +31,7 @@ kospi['Close'].plot(style='--')
 """
 sToday = datetime.today().strftime('%Y%m%d')
 
-cnx = conn.connect(host='221.151.62.212',user='smwjwas',password='qwer0802',database='smwj')
+cnx = conn.connect(**dbConfig.config)
 cursor = cnx.cursor()
 
 select_pool = (" SELECT A.ITEM"
