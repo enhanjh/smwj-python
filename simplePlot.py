@@ -12,6 +12,7 @@ import mysql.connector as conn
 import pytz
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import dbConfig
 from datetime import datetime
 from tzlocal import get_localzone
 
@@ -33,7 +34,7 @@ kospi['Close'].plot(style='--')
 """
 sToday = datetime.today().strftime('%Y%m%d')
 
-cnx = conn.connect(host='221.151.62.212',user='smwjwas',password='qwer0802',database='smwj')
+cnx = conn.connect(**dbConfig.config)
 cursor = cnx.cursor()
 
 select_pool = (" SELECT A.ITEM"

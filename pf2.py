@@ -28,7 +28,7 @@ _insertBuyingItem = False
 _retDbInterestItem = False
 
 # DB connection
-_cnx = conn.connect(host='221.151.62.212',user='smwjwas',password='qwer0802',database='smwj')
+_cnx = conn.connect(**dbConfig.config)
 _cursor = _cnx.cursor()
 
 # logger instance
