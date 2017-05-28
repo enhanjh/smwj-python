@@ -23,7 +23,7 @@ def get_csv_reader(filename):
 
 
 # db connection
-cnx = conn.connect(host='112.172.178.233',user='smwjwas',password='qwer0802',database='smwj')
+cnx = conn.connect(**dbConfig.config)
 cursor = cnx.cursor()
 
 add_market_cap = (" INSERT INTO PRICE_SMMRY "
