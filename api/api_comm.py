@@ -21,9 +21,9 @@ class XASessionEventHandler:
 
 instXASession = win32com.client.DispatchWithEvents("XA_Session.XASession", XASessionEventHandler)
 
-id = "enhanjh"
-passwd = "sens!$33"
-cert_passwd = "lmtls1433))"
+id = ""
+passwd = ""
+cert_passwd = ""
 
 instXASession.ConnectServer("hts.ebestsec.co.kr", 20001)
 instXASession.Login(id, passwd, cert_passwd, 0, 0)
