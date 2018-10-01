@@ -6,7 +6,8 @@ Created on Sun May 28 10:01:12 2017
 """
 
 import mysql.connector as conn
-import unicodecsv 
+import unicodecsv
+from stat import db_config
 import os 
 
 def get_csv_reader(filename): 
@@ -23,7 +24,7 @@ def get_csv_reader(filename):
 
 
 # db connection
-cnx = conn.connect(**dbConfig.config)
+cnx = conn.connect(**db_config.config)
 cursor = cnx.cursor()
 
 add_market_cap = (" INSERT INTO PRICE_SMMRY "

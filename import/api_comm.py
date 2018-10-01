@@ -4,7 +4,8 @@
 
 import win32com.client
 import pythoncom
-import db_config as dbconf
+from stat import db_config as dbconf
+
 
 # 1. login
 class XASessionEventHandler:

@@ -1,9 +1,6 @@
 import mysql.connector as conn
-import db_config
+from stat import db_config
 import pandas as pd
-import numpy as np
-from statistics import mean
-from datetime import datetime
 
 # installed package
 # 1. mysql connector

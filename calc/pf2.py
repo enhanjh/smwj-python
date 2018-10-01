@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Oct 27 05:21:29 2016
+Created on Mon Nov 14 21:07:20 2016
 
-@name  : pf1.py
+@name  : pf2.py
 @author: jihwan
-@pf1   : 시가 매수 후 연속고가가 종료되는날 종가 매도
+@pf2   : 시가 매수 후 5영업일 후 매도
 """
 
-import exTimer
+from util import exTimer
 import sys
-import logging
 import logging.handlers
 import math
 import datetime
@@ -34,7 +33,7 @@ _cursor = _cnx.cursor()
 # logger instance
 _logger = logging.getLogger("myLogger")
 _formatter = logging.Formatter('[%(levelname)s:%(lineno)s] %(asctime)s > %(message)s')
-_fh = TimedRotatingFileHandler("C:\SMWJ_SIMUL_LOG\pf1", when="midnight")
+_fh = TimedRotatingFileHandler("C:\SMWJ_SIMUL_LOG\pf2", when="midnight")
 _fh.setFormatter(_formatter)
 _fh.suffix = "_%Y%m%d.log"
 _logger.addHandler(_fh)
@@ -75,7 +74,7 @@ def watchHandler():
     # 프로그램종료
     elif lTime >= 160000 :
         sys.exit()
-
+        
         
 # 미청산종목 일자 업데이트
 def updateTranSimul(sToday) :
@@ -84,7 +83,7 @@ def updateTranSimul(sToday) :
     
     update_tran = (" UPDATE TRAN_SIMUL "
                    "    SET TRAN_DAY = %(today)s"
-                   "  WHERE SIMUL    = 1"
+                   "  WHERE SIMUL    = 2"
                    "    AND TRAN_SP  = 2"
                    "    AND TRAN_DAY = (SELECT MAX(A.TRAN_DAY)"
                    "                      FROM (SELECT * FROM TRAN_SIMUL) A"
@@ -112,15 +111,21 @@ def insertBuyingItem(sToday) :
                    "      , A.BEGIN_PRICE"
                    "      , FLOOR(150000 / A.BEGIN_PRICE) AS BUY_CNT"
                    "   FROM POOL A"
-                   "  WHERE A.ITEM NOT IN (SELECT AA.ITEM"
-                   "                         FROM TRAN AA"
+                   "      , PRICE B"                 
+                   "  WHERE A.ITEM = B.ITEM"
+                   "    AND A.TRAN_DAY = B.TRAN_DAY"
+                   "    AND A.ITEM NOT IN (SELECT AA.ITEM"
+                   "                         FROM TRAN_SIMUL AA"
                    "                        WHERE AA.TRAN_DAY = '" + sToday + "'"
                    "                      )"
                    "    AND A.TRAN_DAY = (SELECT MAX(BB.TRAN_DAY)"
                    "                        FROM POOL BB"
                    "                       WHERE BB.TRAN_DAY < '" + sToday + "'"
                    "                     )"
+                   "    AND A.BUY_INVOLVE_ITEM_YN = 'Y'"
                    "    AND A.MODE = 2"
+                   "    AND B.AVG_5 > B.AVG_10"
+                   "    AND B.AVG_10 > B.AVG_20"
                    "    AND A.BEGIN_PRICE <= 150000"
                    "    AND A.BEGIN_PRICE > 0"                   
     )    
@@ -143,7 +148,7 @@ def insertBuyingItem(sToday) :
                           "      , TIME_2"
                           "      )"
                           " VALUES "
-                          "      ( 1"
+                          "      ( 2"
                           "      , %(item)s"
                           "      , %(tranDay)s"
                           "      , %(tranId)s"
@@ -185,17 +190,16 @@ def retDbInterestItem(sToday) :
     _logger.info("retDbInterestItem")
     
     select_tran = (" SELECT A.ITEM"
-                   "      , IFNULL((SELECT MAX(AA.HIGH)"
-                   "                  FROM PRICE AA"
-                   "                 WHERE AA.ITEM = A.ITEM"
-                   "                   AND AA.TRAN_DAY >= SUBSTR(TRAN_ID,1,8)"
-                   "               ), 1) AS MAX_HIGH_PRICE"
                    "      , A.BUY_CNT"
                    "      , A.BUY_AMT"
+                   "      , B.SEQ - C.SEQ AS SEQ"
                    "   FROM TRAN_SIMUL A"
-                   "  WHERE SUBSTR(A.TRAN_ID,1,8) < '" + sToday + "'"
+                   "      , TRAN_DAY_CAL B"
+                   "      , TRAN_DAY_CAL C"
+                   "  WHERE A.TRAN_DAY = B.TRAN_DAY"
+                   "    AND SUBSTR(A.TRAN_ID,1,8) = C.TRAN_DAY"
                    "    AND A.TRAN_DAY = '" + sToday + "'"
-                   "    AND A.SIMUL    = 1"
+                   "    AND A.SIMUL    = 2"
                    "    AND A.MODE     = 2"
                    "    AND A.TRAN_SP  = 2"
     )
@@ -220,14 +224,14 @@ def retInterestItem(params, sToday) :
     
     for row in params :
         info = {
-            'prvHighPrice' : row[1],
-            'buyCnt' : row[2],
-            'buyAmt' : row[3]            
+            'buyCnt' : row[1],
+            'buyAmt' : row[2],
+            'seq' : row[3]
         }
 
         itemDict[row[0]] = info
         
-        _logger.debug(row[0] + " : " + str(row[1]))
+        _logger.debug(row[0] + " : " + str(row[3]))
                 
         items += row[0]
         items += ";"
@@ -253,12 +257,11 @@ def retSellingItem(rows,itemDict,sToday) :
     for row in rows :
         item = row.get('item')
         price = row.get('price')
-        highPrice = row.get('highPrice')
-        prvHighPrice = itemDict[item]['prvHighPrice']
+        seq = itemDict[item]['seq']
         buyCnt = itemDict[item]['buyCnt']
         buyAmt = itemDict[item]['buyAmt']        
 
-        if int(highPrice) <= int(prvHighPrice) :
+        if int(seq) == 5 :
             updateSellingItem(item,price,buyCnt,buyAmt,sToday)
     
     
@@ -277,7 +280,7 @@ def updateSellingItem(item,price,buyCnt,buyAmt,sToday) :
                            "      , INCOME     = %(income)s"
                            "      , FINAL_RATE = %(finalRate)s"
                            "      , TIME_4     = NOW()"
-                           "  WHERE SIMUL    = 1"
+                           "  WHERE SIMUL    = 2"
                            "    AND ITEM     = %(item)s"
                            "    AND TRAN_DAY = %(tranDay)s"
                            "    AND TRAN_SP  = 2"
@@ -308,11 +311,11 @@ def updateSellingItem(item,price,buyCnt,buyAmt,sToday) :
     
 
 #updateTranSimul("20161104")
-#insertBuyingItem("20161107")
+#insertBuyingItem("20161121")
 #retDbInterestItem("20161108")
 
 # 타이머 스타터
 th = exTimer.exTimer()
 th.setHandler(watchHandler)
-th.setDelay(20)
+th.setDelay(30)
 th.start()

@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Oct 27 05:21:29 2016
+Created on Mon Nov 14 21:07:20 2016
 
-@name  : profit_rate_watch_pf1.py
+@name  : pf2_1.py
 @author: jihwan
-@pf1   : 시가 매수 후 연속고가가 종료되는날 종가 매도
+@pf2   : 시가 매수 후 5영업일 후 매도(수익률에 따라 매도 시기 변경)
 """
 
-import exTimer
+from util import exTimer
 import sys
-import logging
 import logging.handlers
 import math
 import datetime
 import urllib2
 import json
+from stat import db_config
 import mysql.connector as conn
 from time import localtime, strftime
 from logging.handlers import TimedRotatingFileHandler
@@ -28,13 +28,13 @@ _insertBuyingItem = False
 _retDbInterestItem = False
 
 # DB connection
-_cnx = conn.connect(**dbConfig.config)
+_cnx = conn.connect(**db_config.config)
 _cursor = _cnx.cursor()
 
 # logger instance
 _logger = logging.getLogger("myLogger")
 _formatter = logging.Formatter('[%(levelname)s:%(lineno)s] %(asctime)s > %(message)s')
-_fh = TimedRotatingFileHandler("C:\SMWJ_SIMUL_LOG\pf1", when="midnight")
+_fh = TimedRotatingFileHandler("C:\SMWJ_SIMUL_LOG\pf2_1", when="midnight")
 _fh.setFormatter(_formatter)
 _fh.suffix = "_%Y%m%d.log"
 _logger.addHandler(_fh)
@@ -61,21 +61,27 @@ def watchHandler():
             
             _updateTranSimul = True            
     # 매수가정
-    if lTime >= 90000 and lTime < 90500 :
+    elif lTime >= 90000 and lTime < 90200 :
         if _insertBuyingItem == False :
             insertBuyingItem(sToday)
 
             _insertBuyingItem = True
-    # 매도판단
+    # 오전1매도판단
+    elif lTime >= 90200 and lTime < 90700 :
+        retDbInterestItem(sToday, lTime)
+    # 오전2매도판단
+    elif lTime >= 90700 and lTime <= 93000 :
+        retDbInterestItem(sToday, lTime)
+    # 오후매도판단
     elif lTime >= 151700 and lTime <= 152000 :
         if _retDbInterestItem == False :
-            retDbInterestItem(sToday)
+            retDbInterestItem(sToday, lTime)
             
             _retDbInterestItem = True
     # 프로그램종료
     elif lTime >= 160000 :
         sys.exit()
-
+        
         
 # 미청산종목 일자 업데이트
 def updateTranSimul(sToday) :
@@ -84,7 +90,7 @@ def updateTranSimul(sToday) :
     
     update_tran = (" UPDATE TRAN_SIMUL "
                    "    SET TRAN_DAY = %(today)s"
-                   "  WHERE SIMUL    = 1"
+                   "  WHERE SIMUL    = 3"
                    "    AND TRAN_SP  = 2"
                    "    AND TRAN_DAY = (SELECT MAX(A.TRAN_DAY)"
                    "                      FROM (SELECT * FROM TRAN_SIMUL) A"
@@ -112,8 +118,11 @@ def insertBuyingItem(sToday) :
                    "      , A.BEGIN_PRICE"
                    "      , FLOOR(150000 / A.BEGIN_PRICE) AS BUY_CNT"
                    "   FROM POOL A"
-                   "  WHERE A.ITEM NOT IN (SELECT AA.ITEM"
-                   "                         FROM TRAN AA"
+                   "      , PRICE B"                 
+                   "  WHERE A.ITEM = B.ITEM"
+                   "    AND A.TRAN_DAY = B.TRAN_DAY"
+                   "    AND A.ITEM NOT IN (SELECT AA.ITEM"
+                   "                         FROM TRAN_SIMUL AA"
                    "                        WHERE AA.TRAN_DAY = '" + sToday + "'"
                    "                      )"
                    "    AND A.TRAN_DAY = (SELECT MAX(BB.TRAN_DAY)"
@@ -122,6 +131,8 @@ def insertBuyingItem(sToday) :
                    "                     )"
                    "    AND A.BUY_INVOLVE_ITEM_YN = 'Y'"
                    "    AND A.MODE = 2"
+                   "    AND B.AVG_5 > B.AVG_10"
+                   "    AND B.AVG_10 > B.AVG_20"
                    "    AND A.BEGIN_PRICE <= 150000"
                    "    AND A.BEGIN_PRICE > 0"                   
     )    
@@ -144,7 +155,7 @@ def insertBuyingItem(sToday) :
                           "      , TIME_2"
                           "      )"
                           " VALUES "
-                          "      ( 1"
+                          "      ( 3"
                           "      , %(item)s"
                           "      , %(tranDay)s"
                           "      , %(tranId)s"
@@ -181,22 +192,22 @@ def insertBuyingItem(sToday) :
 
 
 # DB 매도대상 조회
-def retDbInterestItem(sToday) :
+def retDbInterestItem(sToday, lTime) :
     
     _logger.info("retDbInterestItem")
     
     select_tran = (" SELECT A.ITEM"
-                   "      , IFNULL((SELECT MAX(AA.HIGH)"
-                   "                  FROM PRICE AA"
-                   "                 WHERE AA.ITEM = A.ITEM"
-                   "                   AND AA.TRAN_DAY >= SUBSTR(TRAN_ID,1,8)"
-                   "               ), 1) AS MAX_HIGH_PRICE"
                    "      , A.BUY_CNT"
                    "      , A.BUY_AMT"
+                   "      , B.SEQ - C.SEQ AS SEQ"
+                   "      , A.BUY_PRICE"
                    "   FROM TRAN_SIMUL A"
-                   "  WHERE SUBSTR(A.TRAN_ID,1,8) < '" + sToday + "'"
+                   "      , TRAN_DAY_CAL B"
+                   "      , TRAN_DAY_CAL C"
+                   "  WHERE A.TRAN_DAY = B.TRAN_DAY"
+                   "    AND SUBSTR(A.TRAN_ID,1,8) = C.TRAN_DAY"
                    "    AND A.TRAN_DAY = '" + sToday + "'"
-                   "    AND A.SIMUL    = 1"
+                   "    AND A.SIMUL    = 3"
                    "    AND A.MODE     = 2"
                    "    AND A.TRAN_SP  = 2"
     )
@@ -208,32 +219,34 @@ def retDbInterestItem(sToday) :
     rows = _cursor.fetchall()
 
     if _cursor.rowcount > 0 :
-        retInterestItem(rows, sToday)
+        retInterestItem(rows, sToday, lTime)
 
 
 # 매도대상 가격 조회
-def retInterestItem(params, sToday) :
-    
+def retInterestItem(params, sToday, lTime) :
+
     _logger.info("retInterestItem")    
     
     items = ""
     itemDict = dict()
+
     
     for row in params :
-        info = {
-            'prvHighPrice' : row[1],
-            'buyCnt' : row[2],
-            'buyAmt' : row[3]            
-        }
 
+        info = {
+            'buyCnt' : row[1],
+            'buyAmt' : row[2],
+            'seq' : row[3],
+            'buyPrc' : row[4]
+        }
+     
         itemDict[row[0]] = info
         
-        _logger.debug(row[0] + " : " + str(row[1]))
+        _logger.debug(row[0] + " : " + str(row[3]) + " , " + str(row[4]))
                 
         items += row[0]
         items += ";"
         
-
     query = "1005"
 
     content = urllib2.urlopen(_url + query + "&" + items).read()
@@ -243,24 +256,38 @@ def retInterestItem(params, sToday) :
     _logger.debug(rows)
 
     if len(rows) > 0 :
-        retSellingItem(rows,itemDict,sToday)    
+        retSellingItem(rows,itemDict,sToday,lTime)    
 
 
 # 매도여부 판단
-def retSellingItem(rows,itemDict,sToday) :
+def retSellingItem(rows,itemDict,sToday,lTime) :
     
     _logger.info("retSellingItem")    
 
     for row in rows :
         item = row.get('item')
         price = row.get('price')
-        highPrice = row.get('highPrice')
-        prvHighPrice = itemDict[item]['prvHighPrice']
+        seq = itemDict[item]['seq']
         buyCnt = itemDict[item]['buyCnt']
         buyAmt = itemDict[item]['buyAmt']        
-
-        if int(highPrice) <= int(prvHighPrice) :
-            updateSellingItem(item,price,buyCnt,buyAmt,sToday)
+        buyPrc = itemDict[item]['buyPrc']
+        
+        rate = round(int(price)/int(buyPrc),4)
+        
+        if lTime > 151700 :         
+            if int(seq) == 5 :
+                updateSellingItem(item,price,buyCnt,buyAmt,sToday)
+            else :
+                if rate > 1.04 :
+                    updateSellingItem(item,price,buyCnt,buyAmt,sToday)
+                elif rate <= 1.02 and rate > 1.0033 :
+                    updateSellingItem(item,price,buyCnt,buyAmt,sToday)
+        elif lTime > 90000 and lTime <= 90700 :
+            if rate > 1.04 :
+                updateSellingItem(item,price,buyCnt,buyAmt,sToday)
+        elif lTime > 90700 and lTime <= 93000 :
+            if rate <= 1.02 and rate > 1.0033 :
+                updateSellingItem(item,price,buyCnt,buyAmt,sToday)
     
     
 # 매도
@@ -278,7 +305,8 @@ def updateSellingItem(item,price,buyCnt,buyAmt,sToday) :
                            "      , INCOME     = %(income)s"
                            "      , FINAL_RATE = %(finalRate)s"
                            "      , TIME_4     = NOW()"
-                           "  WHERE ITEM     = %(item)s"
+                           "  WHERE SIMUL    = 3"
+                           "    AND ITEM     = %(item)s"
                            "    AND TRAN_DAY = %(tranDay)s"
                            "    AND TRAN_SP  = 2"
                           ) 
@@ -308,11 +336,11 @@ def updateSellingItem(item,price,buyCnt,buyAmt,sToday) :
     
 
 #updateTranSimul("20161104")
-#insertBuyingItem("20161107")
-#retDbInterestItem("20161108")
+#insertBuyingItem("20161121")
+#retDbInterestItem("20170106")
 
 # 타이머 스타터
 th = exTimer.exTimer()
 th.setHandler(watchHandler)
-th.setDelay(20)
+th.setDelay(30)
 th.start()

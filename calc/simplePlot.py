@@ -5,14 +5,9 @@ Created on Sat Nov 19 21:16:20 2016
 @author: jihwan
 """
 
-
-import numpy as np
-import pandas_datareader.data as web
 import mysql.connector as conn
 import pytz
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import dbConfig
+from stat import db_config
 from datetime import datetime
 from tzlocal import get_localzone
 
@@ -34,7 +29,7 @@ kospi['Close'].plot(style='--')
 """
 sToday = datetime.today().strftime('%Y%m%d')
 
-cnx = conn.connect(**dbConfig.config)
+cnx = conn.connect(**db_config.config)
 cursor = cnx.cursor()
 
 select_pool = (" SELECT A.ITEM"
