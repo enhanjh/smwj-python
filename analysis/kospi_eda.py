@@ -8,7 +8,8 @@
 import logging
 import time
 import pandas as pd
-from stat import db_config as ic
+import const.db_config as ic
+import matplotlib.pyplot as plt
 from logging.handlers import TimedRotatingFileHandler
 from sqlalchemy import create_engine
 
@@ -56,6 +57,10 @@ def kodex_lev_data_load():
     return result
 
 
+# some env setting
+pd.set_option('display.max_columns', None)
+# pd.set_option('display.max_rows', None)
+
 # variable init
 logger = logger_start()
 engine = orm_init()
@@ -66,6 +71,17 @@ df = kodex_lev_data_load()
 
 # data copy
 anal = df.copy()
+
+# data info
+anal.info()
+anal.describe()
+anal.hist(bins=50, figsize=(20, 15))
+plt.show()
+
+# data transform
+anal["inst_1da"] = anal["inst"].shift(-1)
+# anal = anal.drop("inst_1da", axis=1)
+anal.head(5)
 
 # correlation of diff_rate
 corr_mat = anal.corr()
