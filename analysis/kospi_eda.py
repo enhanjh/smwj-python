@@ -4,6 +4,7 @@
 # 2. sqlalchemy
 # 3. odo and [datapipelines, networkx 1.11, cassiopeia]
 # 4. pandas
+# 5. matplotlib
 
 import logging
 import time
