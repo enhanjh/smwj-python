@@ -7,6 +7,7 @@
 # 5. matplotlib
 
 import logging
+import sys
 import time
 import pandas as pd
 import const.db_config as ic
@@ -17,12 +18,18 @@ from sqlalchemy import create_engine
 
 def logger_start():
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-    logger = logging.getLogger("myLogger")
     formatter = logging.Formatter('[%(levelname)s:%(lineno)s] %(asctime)s > %(message)s')
-    fh = TimedRotatingFileHandler("C:\SMWJ_LOG\\analyze", when="midnight")
+    logger = logging.getLogger()
+
+    fh = TimedRotatingFileHandler("/Users/enhanjh/Documents/smwj_log/analyze", when="midnight")
     fh.setFormatter(formatter)
     fh.suffix = "_%Y%m%d.log"
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(formatter)
+
     logger.addHandler(fh)
+    logger.addHandler(ch)
     logger.setLevel(logging.DEBUG)
 
     return logger
@@ -72,6 +79,7 @@ df = kodex_lev_data_load()
 
 # data copy
 anal = df.copy()
+add = df.copy()
 
 # data info
 anal.info()
@@ -83,6 +91,16 @@ plt.show()
 anal["inst_1da"] = anal["inst"].shift(-1)
 # anal = anal.drop("inst_1da", axis=1)
 anal.head(5)
+
+window = 20
+roll_max = df["close"].rolling(window, min_periods=1).max()
+daily_drawdown = df["close"] / roll_max - 1.0
+max_daily_drawdown = daily_drawdown.rolling(window, min_periods=1).min()
+
+daily_drawdown.plot()
+max_daily_drawdown.plot()
+plt.xticks(add['tran_day'].values)
+plt.show()
 
 # correlation of diff_rate
 corr_mat = anal.corr()
