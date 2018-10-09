@@ -5,15 +5,19 @@
 # 3. odo and [datapipelines, networkx 1.11, cassiopeia]
 # 4. pandas
 # 5. matplotlib
+# 6. sklearn
 
 import logging
 import sys
 import time
+import smwjsql.query as qu
 import pandas as pd
 import const.db_config as ic
 import matplotlib.pyplot as plt
 from logging.handlers import TimedRotatingFileHandler
 from sqlalchemy import create_engine
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 def logger_start():
@@ -47,20 +51,9 @@ def orm_init():
     return create_engine(bind)
 
 
-def kodex_lev_data_load():
+def kospi_data_load():
     # price, tr volume, f/x rate
-    sql = "select a.tran_day, a.open, a.high, a.low, a.close, b.diff_rate, b.regi_fore, b.inst, b.ant, c.close as usdkrw " \
-          "  from price a" \
-          "  join investor b" \
-          "    on a.item     = b.item" \
-          "   and a.tran_day = b.tran_day" \
-          "  left" \
-          "  join market_index c" \
-          "    on a.tran_day = c.tran_day" \
-          " where a.item     = '122630' " \
-          "   and a.tran_day between '20150101' and '20171231'" \
-          "   and c.item     = 'USDKRWSMBS';"
-    result = pd.read_sql(sql, engine)
+    result = pd.read_sql(qu.kospi_tr_amt, engine)
 
     return result
 
@@ -75,11 +68,10 @@ engine = orm_init()
 today = time.strftime("%Y%m%d")
 
 # data load
-df = kodex_lev_data_load()
+df = kospi_data_load()
 
 # data copy
 anal = df.copy()
-add = df.copy()
 
 # data info
 anal.info()
@@ -88,9 +80,27 @@ anal.hist(bins=50, figsize=(20, 15))
 plt.show()
 
 # data transform
-anal["inst_1da"] = anal["inst"].shift(-1)
+# column select
+# kospi, futures, put, bond,
+anal_tmp_sort = anal.sort_values(["tran_day"], ascending=False)
+   nnmbnbmnn bm
+anal_tmp_sort["lahjn bel"] = anal_tmp_sort["diff_rate"].shift(1).rolling(window=5).max()
 # anal = anal.drop("inst_1da", axis=1)
+anal = anal.drop("tbill", axis=1)
+anal = anal.drop("diff", axis=1)
 anal.head(5)
+
+# correlation of diff_rate
+corr_mat = anal.corr()
+corr_mat["diff_rate"].sort_values(ascending=False)
+
+# stardardized scaling
+anal_pipeline = Pipeline([('std_scaler', StandardScaler())])
+anal_ss = anal_pipeline.fit_transform(anal)
+anal_ss.shape
+
+# max drawdown
+add = df.copy()
 
 window = 20
 roll_max = df["close"].rolling(window, min_periods=1).max()
@@ -101,7 +111,3 @@ daily_drawdown.plot()
 max_daily_drawdown.plot()
 plt.xticks(add['tran_day'].values)
 plt.show()
-
-# correlation of diff_rate
-corr_mat = anal.corr()
-corr_mat["diff_rate"].sort_values(ascending=False)
