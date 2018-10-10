@@ -25,7 +25,7 @@ def logger_start():
     formatter = logging.Formatter('[%(levelname)s:%(lineno)s] %(asctime)s > %(message)s')
     logger = logging.getLogger()
 
-    fh = TimedRotatingFileHandler("/Users/enhanjh/Documents/smwj_log/analyze", when="midnight")
+    fh = TimedRotatingFileHandler("./analyze", when="midnight")
     fh.setFormatter(formatter)
     fh.suffix = "_%Y%m%d.log"
 
@@ -51,9 +51,8 @@ def orm_init():
     return create_engine(bind)
 
 
-def kospi_data_load():
-    # price, tr volume, f/x rate
-    result = pd.read_sql(qu.kospi_tr_amt, engine)
+def query(sql):
+    result = pd.read_sql(sql, engine)
 
     return result
 
@@ -68,7 +67,8 @@ engine = orm_init()
 today = time.strftime("%Y%m%d")
 
 # data load
-df = kospi_data_load()
+# df = kospi_data_load()
+df = query(qu.magic)
 
 # data copy
 anal = df.copy()
@@ -77,27 +77,53 @@ anal = df.copy()
 anal.info()
 anal.describe()
 anal.hist(bins=50, figsize=(20, 15))
-plt.show()
-
-# data transform
-# column select
-# kospi, futures, put, bond,
-anal_tmp_sort = anal.sort_values(["tran_day"], ascending=False)
-   nnmbnbmnn bm
-anal_tmp_sort["lahjn bel"] = anal_tmp_sort["diff_rate"].shift(1).rolling(window=5).max()
-# anal = anal.drop("inst_1da", axis=1)
-anal = anal.drop("tbill", axis=1)
-anal = anal.drop("diff", axis=1)
-anal.head(5)
-
 # correlation of diff_rate
 corr_mat = anal.corr()
 corr_mat["diff_rate"].sort_values(ascending=False)
 
+# data transform
+# 1. label insert
+anal_tmp = pd.DataFrame(anal['kospi_close'].shift(-1))
+anal_tmp['org'] = anal['kospi_close']
+anal_tmp['max'] = anal_tmp['kospi_close'][::-1].rolling(window=5, center=False).max()[::-1]
+anal_tmp['max_rate'] = ((anal_tmp['max'] / anal_tmp['org'] - 1) * 100).round(2)
+anal_tmp.loc[anal_tmp['max_rate'] > 1.0, 'label'] = 1
+anal_tmp['label'] = anal_tmp['label'].fillna(0)
+# len(anal_tmp.loc[anal_tmp['label'] == 1])  # 10days: 499, 5days: 339, 3days: 238
+# anal_tmp.head(30)
+anal['label'] = anal_tmp['label']
+del anal_tmp
+
+# 2. data scaling
 # stardardized scaling
 anal_pipeline = Pipeline([('std_scaler', StandardScaler())])
 anal_ss = anal_pipeline.fit_transform(anal)
-anal_ss.shape
+anal_scaled = pd.DataFrame(anal_ss, columns=anal.columns)
+# 2.5 column cleaning
+anal_scaled = anal_scaled.loc[:, ['volume', 'mmf', 'kospi_fore', 'kospi_inst', 'futures_fore', 'futures_inst']]
+# anal_scaled.describe()
+# anal_scaled = anal_scaled.drop('label', axis=1)
+
+# 3. 1, 5, 10, 20, 40, 60days before data insert
+anal_tmp = anal_scaled.copy()
+days = [1, 5, 10, 20, 40, 60]
+for col in anal_tmp.columns:
+    for day in days:
+        anal_scaled[col + str(day)] = anal_scaled[col].shift(day)
+
+# anal_scaled.head(70)
+# anal_scaled.describe()
+anal_scaled['label'] = anal['label']
+anal_scaled = anal_scaled[81:]
+
+
+
+
+
+
+
+
+
 
 # max drawdown
 add = df.copy()
