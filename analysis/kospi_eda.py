@@ -4,20 +4,24 @@
 # 2. sqlalchemy
 # 3. odo and [datapipelines, networkx 1.11, cassiopeia]
 # 4. pandas
-# 5. matplotlib
-# 6. sklearn
+# 5. numpy
+# 6. matplotlib
+# 7. sklearn
 
 import logging
 import sys
 import time
 import smwjsql.query as qu
 import pandas as pd
+import numpy as np
 import const.db_config as ic
 import matplotlib.pyplot as plt
 from logging.handlers import TimedRotatingFileHandler
 from sqlalchemy import create_engine
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
 
 
 def logger_start():
@@ -57,6 +61,29 @@ def query(sql):
     return result
 
 
+def add_label(df):
+    result_df = pd.DataFrame(df['kospi_close'].shift(-1))
+    result_df['org'] = df['kospi_close']
+    result_df['max'] = result_df['kospi_close'][::-1].rolling(window=5, center=False).max()[::-1]
+    result_df['max_rate'] = ((result_df['max'] / result_df['org'] - 1) * 100).round(2)
+    result_df.loc[result_df['max_rate'] > 1.0, 'label'] = 1
+    result_df['label'] = result_df['label'].fillna(0)
+
+    return result_df
+
+
+def add_variable(df):
+    result_df = df.copy()
+    anal_temp = result_df.copy()
+    days = [1, 5, 10, 20, 40, 60]
+    for col in anal_temp.columns:
+        for day in days:
+            result_df[col + str(day)] = ((result_df[col] / result_df[col].shift(day) - 1) * 100).round(2)
+
+    del anal_temp
+
+    return result_df
+
 # some env setting
 pd.set_option('display.max_columns', None)
 # pd.set_option('display.max_rows', None)
@@ -82,48 +109,50 @@ corr_mat = anal.corr()
 corr_mat["diff_rate"].sort_values(ascending=False)
 
 # data transform
-# 1. label insert
-anal_tmp = pd.DataFrame(anal['kospi_close'].shift(-1))
-anal_tmp['org'] = anal['kospi_close']
-anal_tmp['max'] = anal_tmp['kospi_close'][::-1].rolling(window=5, center=False).max()[::-1]
-anal_tmp['max_rate'] = ((anal_tmp['max'] / anal_tmp['org'] - 1) * 100).round(2)
-anal_tmp.loc[anal_tmp['max_rate'] > 1.0, 'label'] = 1
-anal_tmp['label'] = anal_tmp['label'].fillna(0)
+# 1. preparing label
+anal_tmp = add_label(anal)
+anal_label_train = anal_tmp['label'][81:981]
+anal_label_test = anal_tmp['label'][981:]
+anal_label_train.shape
+anal_label_test.shape
+del anal_tmp
 # len(anal_tmp.loc[anal_tmp['label'] == 1])  # 10days: 499, 5days: 339, 3days: 238
 # anal_tmp.head(30)
-anal['label'] = anal_tmp['label']
-del anal_tmp
 
-# 2. data scaling
-# stardardized scaling
-anal_pipeline = Pipeline([('std_scaler', StandardScaler())])
-anal_ss = anal_pipeline.fit_transform(anal)
-anal_scaled = pd.DataFrame(anal_ss, columns=anal.columns)
-# 2.5 column cleaning
-anal_scaled = anal_scaled.loc[:, ['volume', 'mmf', 'kospi_fore', 'kospi_inst', 'futures_fore', 'futures_inst']]
+
+# 2 dropping useless column
+anal_pp = anal.loc[:, ['volume', 'fx_close', 'mmf', 'kospi_fore', 'kospi_inst', 'futures_fore', 'futures_inst']]
 # anal_scaled.describe()
 # anal_scaled = anal_scaled.drop('label', axis=1)
 
-# 3. 1, 5, 10, 20, 40, 60days before data insert
-anal_tmp = anal_scaled.copy()
-days = [1, 5, 10, 20, 40, 60]
-for col in anal_tmp.columns:
-    for day in days:
-        anal_scaled[col + str(day)] = anal_scaled[col].shift(day)
+# 3. adding diff rate between present and 1, 5, 10, 20, 40, 60days ago
+anal_pp = add_variable(anal_pp)
+anal_pp_train = anal_pp[81:981]
+anal_pp_test = anal_pp[981:]
+anal_pp_train.shape
+anal_pp_test.shape
+del anal_pp
 
-# anal_scaled.head(70)
-# anal_scaled.describe()
-anal_scaled['label'] = anal['label']
-anal_scaled = anal_scaled[81:]
+# 4. data scaling
+# stardardized scaling
+anal_pipeline = Pipeline([('std_scaler', StandardScaler())])
+anal_train = anal_pipeline.fit_transform(anal_pp_train)
+anal_test = anal_pipeline.fit_transform(anal_pp_test)
+# anal_train = pd.DataFrame(anal_ss, columns=anal_pp.columns)
+# anal_train.head(70)
+# anal_train.describe()
 
+# 5. Random Forest
+rf_clf = RandomForestClassifier()
+rf_clf.fit(anal_train, anal_label_train)
+rf_score = cross_val_score(rf_clf, anal_train, anal_label_train, scoring='neg_mean_squared_error', cv=10)
+rf_rmse_score = np.sqrt(-rf_score)
+rf_rmse_score
 
-
-
-
-
-
-
-
+# 6. preparing test data
+predict = rf_clf.predict(anal_test)
+result = pd.DataFrame([predict, anal_label_test[1:]], columns=['pred', 'actual'])
+round(len(result.loc[result['actual'] == result['pred']]) / len(result) * 100, 2)
 
 # max drawdown
 add = df.copy()
