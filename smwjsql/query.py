@@ -22,6 +22,19 @@ multi_item_price = "select a.tran_day" \
                    " where a.item = '{item}'" \
                    "   and a.tran_day between '{sdate}' and '{edate}';"
 
+money = "select tran_day" \
+        "     , kospi_close" \
+        "     , volume" \
+        "     , deposit" \
+        "     , credit_bal" \
+        "     , depo_futures" \
+        "     , stock" \
+        "     , bond" \
+        "     , tbill" \
+        "     , mmf" \
+        "  from market_liquidity" \
+        " where tran_day between '{sdate}' and '{edate}'"
+
 kospi_liq = "select a.tran_day" \
             "     , a.kospi_close" \
             "     , case when a.diff_rate < 0 then a.diff * -1" \
