@@ -35,6 +35,25 @@ money = "select tran_day" \
         "  from market_liquidity" \
         " where tran_day between '{sdate}' and '{edate}'"
 
+market_index_tr_amt = "select a.tran_day" \
+                      "     , b.kospi_close" \
+                      "     , a.inst" \
+                      "     , a.fore" \
+                      "  from market_index_tr_amt a" \
+                      "  join market_liquidity b" \
+                      "    on a.tran_day = b.tran_day" \
+                      " where a.item = '{item}'" \
+                      "   and a.tran_day between '{sdate}' and '{edate}'"
+
+fore_tr_amt = "select a.tran_day" \
+                      "     , b.kospi_close" \
+                      "     , a.fore" \
+                      "  from market_index_tr_amt a" \
+                      "  join market_liquidity b" \
+                      "    on a.tran_day = b.tran_day" \
+                      " where a.item = '{item}'" \
+                      "   and a.tran_day between '{sdate}' and '{edate}'"
+
 kospi_liq = "select a.tran_day" \
             "     , a.kospi_close" \
             "     , case when a.diff_rate < 0 then a.diff * -1" \
