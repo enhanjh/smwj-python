@@ -14,7 +14,7 @@ import time
 import smwjsql.query as qu
 import pandas as pd
 import numpy as np
-import const.db_config as ic
+import const.const as ic
 import matplotlib.pyplot as plt
 from logging.handlers import TimedRotatingFileHandler
 from sqlalchemy import create_engine

@@ -1,4 +1,4 @@
-import const.db_config as ic
+import const.const as ic
 from sqlalchemy import create_engine
 
 
