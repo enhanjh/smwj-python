@@ -1,11 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Oct 28 04:43:58 2016
-
-@name  : ex_timer.py
-@author: jihwan
-"""
-
 import time
 import threading
 

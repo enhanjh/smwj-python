@@ -1,6 +1,7 @@
 import const.stat as ic
 import telegram
 import logging
+from kafka import KafkaConsumer
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 
@@ -36,15 +37,16 @@ class TelegramBotSmwj(TelegramBot):
     def __init__(self):
         # parent object
         # self.par = pobject
-        self.logger = logging.getLogger()
-
+        self.loggerTelegram = logging.getLogger()
+        self.loggerTelegram.propagate = 0
+        
         self.token = ic.telegram["token"]
         TelegramBot.__init__(self, 'smwj', self.token)
 
         self.add_handler("accnt", self.send_accnt_items)
         self.add_handler("startat", self.set_start_time)
         self.add_handler("shutdown", self.shut_down)
-        self.updater.stop()
+        self.updater.stop()                
 
     def add_handler(self, cmd, func):
         self.dispatcher.add_handler(CommandHandler(cmd, func))
@@ -82,5 +84,18 @@ class TelegramBotSmwj(TelegramBot):
         self.par.shut_down()
 
     def start(self):
-        self.logger.info("chatbot started")
+        self.loggerTelegram.info("chatbot started")
         self.updater.start_polling()
+        
+        self.send_message("smwj-chatbot is starting up")
+        
+        botCsm = KafkaConsumer('bot', bootstrap_servers=['localhost:9092'])        
+
+        for message in botCsm:
+            self.send_message(message.value.decode('utf-8'))
+            # message value and key are raw bytes -- decode if necessary!
+            # e.g., for unicode: `message.value.decode('utf-8')`            
+            self.loggerTelegram.info("%s:%d:%d: key=%s value=%s" % (message.topic, message.partition,
+                                                          message.offset, message.key, message.value))
+
+
